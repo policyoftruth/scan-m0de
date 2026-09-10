@@ -145,8 +145,7 @@ class ScanModeApp(App):
 
     BINDINGS = [
         Binding("s", "trigger_scan", "Scan Network", show=True),
-        Binding("enter", "edit_selected", "Edit Label", show=True),
-        Binding("e", "edit_selected", "Edit Label", show=False),
+        Binding("e", "edit_selected", "Edit Device", show=True),
         Binding("d", "view_diffs", "Audit / Diffs Log", show=True),
         Binding("c", "change_subnet", "Change Subnet", show=True),
         Binding("f", "focus_search", "Search Filter", show=True),
@@ -335,6 +334,24 @@ class ScanModeApp(App):
             self.call_from_thread(self.notify, msg, title="Scan Complete", severity="information" if summary['new_count'] == 0 else "warning")
         finally:
             self.is_scanning = False
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle Enter / double-click on a table row — open edit modal."""
+        mac = str(event.row_key.value)
+        device = self.db.get_device_by_mac(mac)
+        if device:
+            def handle_edit(result: Optional[Dict[str, str]]) -> None:
+                if result:
+                    self.db.update_device_label(
+                        result["mac"],
+                        result["custom_label"],
+                        result["category"],
+                        result["notes"]
+                    )
+                    self.refresh_table()
+                    self.notify(f"Updated label for {result['mac']}", title="Catalog Saved")
+
+            self.push_screen(EditDeviceModal(device), handle_edit)
 
     def action_edit_selected(self) -> None:
         """Open device editor modal for currently selected table row."""
