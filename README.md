@@ -13,9 +13,9 @@
 - **🏷️ Custom Cataloging & Nicknames** — Label your devices with friendly names (*"Living Room Apple TV"*, *"Unraid Server"*), assign categories, and add notes.
 - **⚡ Diffing & Audit Log** — Automatically flags **NEW** devices never seen before, logs online/offline transitions, and records IP address changes across scans.
 - **📡 Hybrid MAC Vendor Lookup** — Curated friendly-name database (Apple, Sonos, Ubiquiti, Raspberry Pi, ESP32, etc.) layered over the full IEEE OUI registry (~40k entries). Auto-downloads and caches locally — zero API keys, zero cloud calls.
-- **📊 Interactive TUI Dashboard** — Powered by [Textual](https://textual.textualize.io) with live stats, sortable device table, search filtering, keyboard navigation, and modal editors.
-- **💾 Single-File SQLite Database** — Your entire device catalog lives in one portable `devices.db` file with owner-only permissions (`0600`).
-- **🤖 Headless & Export Modes** — Run scans from cron (`--scan-only`), export your catalog to JSON or CSV, update the OUI database on demand.
+- **📊 Interactive TUI Dashboard** — Powered by [Textual](https://textual.textualize.io) with real-time stats, live search filtering, status filtering (Online/Offline/New), keyboard navigation, and modal editors.
+- **💾 Single-File SQLite Database** — Your entire device catalog lives in one portable `devices.db` file with owner-only permissions (`0600`), stored centrally at `~/.local/share/scan-m0de/devices.db`.
+- **🤖 Headless & Export Modes** — Run scans from cron (`--scan-only`), stream or save catalog data to JSON or CSV (with `-` for stdout), and update the OUI database on demand.
 - **🔒 Privacy First** — Everything runs locally. No telemetry, no network calls except the optional IEEE OUI database download.
 
 ---
@@ -77,8 +77,13 @@ scan-m0de --scan-only
 
 ### Export Device Catalog
 ```bash
+# Save to file
 scan-m0de --export-json catalog.json
 scan-m0de --export-csv catalog.csv
+
+# Or stream directly to stdout for piping (e.g. into jq)
+scan-m0de --export-json - | jq '.[].ip'
+scan-m0de --export-csv -
 ```
 
 ### OUI Vendor Database Management
@@ -92,7 +97,9 @@ scan-m0de --oui-stats
 
 ---
 
-## ⌨️ TUI Keyboard Shortcuts
+## ⌨️ TUI Navigation & Shortcuts
+
+Navigate rows with **`↑` / `↓` Arrow Keys** or **Mouse Clicks**.
 
 | Key | Action |
 |-----|--------|
@@ -100,10 +107,12 @@ scan-m0de --oui-stats
 | `Enter` | Edit selected device (label, category, notes) |
 | `e` | Edit selected device (alternate) |
 | `d` | View Audit Log & Diff History |
-| `c` | Change Target Subnet |
-| `f` | Focus Search Filter |
-| `r` | Refresh Table |
-| `q` | Quit |
+| `c` | Change Target Subnet (e.g. `/24`, `/16`) |
+| `f` | Focus Search Filter Bar |
+| `r` | Refresh Table View |
+| `q` | Quit Application |
+
+*Tip: You can also **double-click** any device row to open the editor directly.*
 
 ---
 
