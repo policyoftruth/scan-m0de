@@ -2,6 +2,7 @@
 
 import ipaddress
 from typing import Dict, Any, Optional
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Grid, Vertical, Horizontal
 from textual.screen import ModalScreen
@@ -36,9 +37,18 @@ class EditDeviceModal(ModalScreen[Optional[Dict[str, str]]]):
         label = self.device.get("custom_label", "")
         category = self.device.get("category", "Uncategorized")
         notes = self.device.get("notes", "")
+        header_text = Text.assemble(
+            ("Edit Device Catalog Entry\n", "bold cyan"),
+            ("MAC: ", "dim"),
+            (mac, "dim bold"),
+            (" | IP: ", "dim"),
+            (ip, "dim"),
+            (" | Vendor: ", "dim"),
+            (vendor, "dim"),
+        )
 
         yield Vertical(
-            Static(f"[bold cyan]Edit Device Catalog Entry[/bold cyan]\n[dim]MAC: {mac} | IP: {ip} | Vendor: {vendor}[/dim]", id="modal_header"),
+            Static(header_text, id="modal_header"),
             Rule(),
             Label("[bold]Custom Device Label / Nickname:[/bold]"),
             Input(value=label, placeholder="e.g. Living Room Apple TV, Unraid Server...", id="input_label"),
@@ -95,21 +105,21 @@ class DiffHistoryModal(ModalScreen[None]):
         for d in self.diffs:
             change_type = d.get("change_type", "")
             if change_type == "NEW":
-                badge = f"[bold green]⚡ NEW[/bold green]"
+                badge = Text("⚡ NEW", style="bold green")
             elif change_type == "JOINED":
-                badge = f"[green]🟢 JOINED[/green]"
+                badge = Text("🟢 JOINED", style="green")
             elif change_type == "LEFT":
-                badge = f"[red]🔴 LEFT[/red]"
+                badge = Text("🔴 LEFT", style="red")
             else:
-                badge = f"[yellow]🔄 {change_type}[/yellow]"
+                badge = Text(f"🔄 {change_type}", style="yellow")
 
             label_vendor = d.get("custom_label") or d.get("vendor") or "—"
             table.add_row(
-                d.get("timestamp", ""),
+                Text(d.get("timestamp", "")),
                 badge,
-                d.get("mac", ""),
-                d.get("details", ""),
-                label_vendor
+                Text(d.get("mac", "")),
+                Text(d.get("details", "")),
+                Text(label_vendor),
             )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

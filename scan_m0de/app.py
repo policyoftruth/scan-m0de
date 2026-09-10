@@ -3,6 +3,8 @@
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
+from rich.text import Text
+
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
@@ -251,13 +253,17 @@ class ScanModeApp(App):
 
             # Format status badge
             if dev["is_new"]:
-                status_badge = "[bold yellow]⚡ NEW[/bold yellow]"
+                status_badge = Text("⚡ NEW", style="bold yellow")
             elif dev["is_online"]:
-                status_badge = "[bold green]🟢 Online[/bold green]"
+                status_badge = Text("🟢 Online", style="bold green")
             else:
-                status_badge = "[dim red]🔴 Offline[/dim red]"
+                status_badge = Text("🔴 Offline", style="dim red")
 
-            label_display = dev["custom_label"] if dev["custom_label"] else "[dim]— Set Label (Enter) —[/dim]"
+            if dev["custom_label"]:
+                label_display = Text(dev["custom_label"])
+            else:
+                label_display = Text("— Set Label (Enter) —", style="dim")
+
             vendor_display = dev["vendor"] if dev["vendor"] else "Unknown"
             hostname_display = dev["hostname"] if dev["hostname"] else "—"
             ports_display = dev["open_ports"] if dev["open_ports"] else "—"
@@ -265,13 +271,13 @@ class ScanModeApp(App):
             table.add_row(
                 status_badge,
                 label_display,
-                dev["ip"],
-                dev["mac"],
-                vendor_display,
-                hostname_display,
-                dev["category"],
-                ports_display,
-                dev["last_seen"],
+                Text(dev["ip"]),
+                Text(dev["mac"]),
+                Text(vendor_display),
+                Text(hostname_display),
+                Text(dev["category"]),
+                Text(ports_display),
+                Text(dev["last_seen"]),
                 key=dev["mac"]
             )
 
