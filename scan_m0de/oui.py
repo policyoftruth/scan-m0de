@@ -1,8 +1,36 @@
-"""Offline MAC OUI Vendor lookup table for local device identification."""
+"""Hybrid MAC OUI vendor lookup: curated friendly names + full IEEE database (zero dependencies)."""
 
-# Comprehensive database of common MAC OUI prefixes (first 3 bytes: XX:XX:XX)
-OUI_DB = {
-    # Apple
+import csv
+import io
+import logging
+import os
+import time
+import urllib.request
+import urllib.error
+from pathlib import Path
+from typing import Dict, Optional
+
+logger = logging.getLogger(__name__)
+
+# IEEE MA-L (OUI) registry — public CSV download
+IEEE_OUI_URL = "https://standards-oui.ieee.org/oui/oui.csv"
+
+# Cache location: ~/.local/share/scan-m0de/ieee_oui.csv
+CACHE_DIR = Path.home() / ".local" / "share" / "scan-m0de"
+CACHE_FILE = CACHE_DIR / "ieee_oui.csv"
+
+# Auto-refresh if cache is older than 30 days
+CACHE_MAX_AGE_DAYS = 30
+
+# ---------------------------------------------------------------------------
+# Curated friendly-name overlay
+# ---------------------------------------------------------------------------
+# These override the raw IEEE corporate names with recognizable consumer brand
+# names. "Flextronics Computing(Suzhou)Co.,Ltd." → "Apple", etc.
+# Keys are uppercase 3-byte OUI prefixes: "XX:XX:XX"
+
+FRIENDLY_NAMES: Dict[str, str] = {
+    # Apple (including contract manufacturers like Flextronics, Luxshare, Pegatron, Quanta, Compal)
     "00:03:93": "Apple", "00:05:02": "Apple", "00:0A:27": "Apple", "00:0D:93": "Apple",
     "00:10:FA": "Apple", "00:11:24": "Apple", "00:14:51": "Apple", "00:16:CB": "Apple",
     "00:17:F2": "Apple", "00:19:E3": "Apple", "00:1B:63": "Apple", "00:1C:B3": "Apple",
@@ -24,7 +52,7 @@ OUI_DB = {
     "20:78:F0": "Apple", "20:9B:CD": "Apple", "20:A2:E4": "Apple", "20:C9:D0": "Apple",
     "AC:3C:8E": "Apple", "4C:50:DD": "Apple", "1C:30:08": "Apple", "1C:53:F9": "Apple",
     "A0:9F:10": "Apple", "60:A4:4C": "Apple", "9C:BC:F0": "Apple", "74:40:BB": "Apple",
-    "DC:36:98": "Apple", "80:EE:73": "Apple", "58:D8:12": "TP-Link",
+    "DC:36:98": "Apple", "80:EE:73": "Apple",
 
     # Raspberry Pi Foundation
     "B8:27:EB": "Raspberry Pi", "DC:A6:32": "Raspberry Pi", "E4:5F:01": "Raspberry Pi",
@@ -96,10 +124,11 @@ OUI_DB = {
     # TP-Link
     "00:1D:0F": "TP-Link", "00:27:19": "TP-Link", "14:CC:20": "TP-Link", "18:A6:F7": "TP-Link",
     "1B:28:5A": "TP-Link", "30:B5:C2": "TP-Link", "50:C7:BF": "TP-Link", "54:C8:0F": "TP-Link",
-    "5C:A6:E6": "TP-Link", "60:E3:27": "TP-Link", "74:DA:38": "TP-Link", "78:8C:54": "TP-Link",
-    "84:16:F9": "TP-Link", "90:F6:52": "TP-Link", "98:DA:C4": "TP-Link", "A0:F3:C1": "TP-Link",
-    "B0:48:7A": "TP-Link", "C0:25:E9": "TP-Link", "C4:6E:1F": "TP-Link", "CC:32:E5": "TP-Link",
-    "D8:07:B6": "TP-Link", "E8:48:B8": "TP-Link", "EC:08:6B": "TP-Link", "F4:F2:6D": "TP-Link",
+    "5C:A6:E6": "TP-Link", "58:D8:12": "TP-Link", "60:E3:27": "TP-Link", "74:DA:38": "TP-Link",
+    "78:8C:54": "TP-Link", "84:16:F9": "TP-Link", "90:F6:52": "TP-Link", "98:DA:C4": "TP-Link",
+    "A0:F3:C1": "TP-Link", "B0:48:7A": "TP-Link", "C0:25:E9": "TP-Link", "C4:6E:1F": "TP-Link",
+    "CC:32:E5": "TP-Link", "D8:07:B6": "TP-Link", "E8:48:B8": "TP-Link", "EC:08:6B": "TP-Link",
+    "F4:F2:6D": "TP-Link",
 
     # Asus
     "00:0E:A6": "Asus", "00:11:D8": "Asus", "00:13:D4": "Asus", "00:15:F2": "Asus",
@@ -119,22 +148,8 @@ OUI_DB = {
     "28:80:88": "Netgear", "2C:30:33": "Netgear", "30:46:9A": "Netgear", "44:94:FC": "Netgear",
     "A0:04:60": "Netgear", "B0:39:56": "Netgear", "C0:3F:0E": "Netgear", "E0:46:EE": "Netgear",
 
-    # Intel
-    "00:02:B3": "Intel", "00:03:47": "Intel", "00:04:23": "Intel", "00:0E:0C": "Intel",
-    "00:13:02": "Intel", "00:13:CE": "Intel", "00:15:00": "Intel", "00:16:EA": "Intel",
-    "00:18:DE": "Intel", "00:19:D2": "Intel", "00:1B:21": "Intel", "00:1C:C0": "Intel",
-    "00:1D:E0": "Intel", "00:1E:64": "Intel", "00:1F:3C": "Intel", "00:21:6A": "Intel",
-    "00:22:FB": "Intel", "00:23:14": "Intel", "00:24:D7": "Intel", "00:27:0E": "Intel",
-    "08:00:27": "VirtualBox / Intel", "34:60:F9": "Intel", "3C:A8:2A": "Intel", "48:51:B7": "Intel",
-    "48:F1:7F": "Intel", "50:7B:9D": "Intel", "54:8C:A0": "Intel", "58:91:CF": "Intel",
-    "60:57:18": "Intel", "64:4B:F0": "Intel", "68:05:CA": "Intel", "6C:88:14": "Intel",
-    "70:1C:E7": "Intel", "74:E5:F9": "Intel", "78:2B:46": "Intel", "7C:5C:F8": "Intel",
-    "80:86:F2": "Intel", "84:7B:EB": "Intel", "88:78:73": "Intel", "8C:85:90": "Intel",
-    "94:65:9C": "Intel", "98:2C:BC": "Intel", "A0:36:9F": "Intel", "A4:4E:31": "Intel",
-    "AC:D1:B8": "Intel", "B4:2E:99": "Intel", "B8:6B:23": "Intel", "C8:5B:76": "Intel",
-
     # Gaming & Entertainment
-    "00:04:13": "SNOM", "00:0D:0D": "Microsoft", "00:12:5A": "Microsoft", "00:17:FA": "Microsoft",
+    "00:0D:0D": "Microsoft", "00:12:5A": "Microsoft", "00:17:FA": "Microsoft",
     "00:1D:D8": "Microsoft", "00:22:48": "Microsoft", "00:25:AE": "Microsoft", "28:18:78": "Microsoft",
     "58:82:A8": "Microsoft (Xbox)", "60:45:BD": "Microsoft (Xbox)", "7C:ED:8D": "Microsoft (Xbox)",
     "00:01:4A": "Sony", "00:04:1F": "Sony", "00:13:15": "Sony", "00:15:C1": "Sony",
@@ -145,25 +160,145 @@ OUI_DB = {
     "00:1F:C5": "Nintendo", "00:21:47": "Nintendo", "00:22:AA": "Nintendo", "00:23:CC": "Nintendo",
     "00:24:44": "Nintendo", "00:25:A0": "Nintendo", "78:A2:A0": "Nintendo (Switch)",
     "98:B6:E9": "Nintendo (Switch)", "B8:AE:6E": "Nintendo (Switch)", "E0:0C:7F": "Nintendo (Switch)",
-    "00:25:90": "Super Micro", "00:30:48": "Super Micro", "00:E0:81": "Super Micro",
+    "50:6B:8D": "Valve (Steam Deck)", "7C:25:DA": "Valve",
+
+    # Virtualization
     "00:0C:29": "VMware", "00:50:56": "VMware", "00:1C:14": "VMware", "00:05:69": "VMware",
-    "50:6B:8D": "Valve Corporation (Steam Deck)", "7C:25:DA": "Valve Corporation",
+    "08:00:27": "VirtualBox",
 }
 
+# ---------------------------------------------------------------------------
+# IEEE OUI database loader
+# ---------------------------------------------------------------------------
+
+# Module-level cache so we only parse the file once per process
+_ieee_db: Optional[Dict[str, str]] = None
+
+
+def _parse_ieee_csv(filepath: Path) -> Dict[str, str]:
+    """Parse IEEE oui.csv into a dict mapping 'XX:XX:XX' prefix -> organization name."""
+    db = {}
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            reader = csv.reader(f)
+            next(reader, None)  # skip header row
+            for row in reader:
+                if len(row) >= 3:
+                    # Column 1 is the 6-char hex assignment (e.g. "ACDE48")
+                    raw_prefix = row[1].strip().upper()
+                    org_name = row[2].strip()
+                    if len(raw_prefix) == 6 and org_name:
+                        # Convert "ACDE48" -> "AC:DE:48"
+                        prefix = f"{raw_prefix[0:2]}:{raw_prefix[2:4]}:{raw_prefix[4:6]}"
+                        db[prefix] = org_name
+    except (OSError, csv.Error) as e:
+        logger.warning("Failed to parse IEEE OUI database at %s: %s", filepath, e)
+    return db
+
+
+def _download_ieee_db() -> bool:
+    """Download the IEEE OUI CSV to the local cache. Returns True on success."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    logger.info("Downloading IEEE OUI database from %s ...", IEEE_OUI_URL)
+    try:
+        req = urllib.request.Request(IEEE_OUI_URL, headers={"User-Agent": "scan-m0de/0.1"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = resp.read()
+        # Atomic write: write to temp file then rename
+        tmp_file = CACHE_FILE.with_suffix(".tmp")
+        tmp_file.write_bytes(data)
+        tmp_file.rename(CACHE_FILE)
+        logger.info("IEEE OUI database cached at %s (%d bytes)", CACHE_FILE, len(data))
+        return True
+    except (urllib.error.URLError, OSError, TimeoutError) as e:
+        logger.warning("Failed to download IEEE OUI database: %s", e)
+        return False
+
+
+def _cache_is_stale() -> bool:
+    """Check if the cached IEEE database is missing or older than CACHE_MAX_AGE_DAYS."""
+    if not CACHE_FILE.exists():
+        return True
+    age_seconds = time.time() - CACHE_FILE.stat().st_mtime
+    return age_seconds > (CACHE_MAX_AGE_DAYS * 86400)
+
+
+def _get_ieee_db() -> Dict[str, str]:
+    """Get the IEEE OUI database, downloading if needed. Returns cached dict."""
+    global _ieee_db
+    if _ieee_db is not None:
+        return _ieee_db
+
+    # Auto-download if cache is missing or stale
+    if _cache_is_stale():
+        _download_ieee_db()
+
+    if CACHE_FILE.exists():
+        _ieee_db = _parse_ieee_csv(CACHE_FILE)
+        logger.info("Loaded %d entries from IEEE OUI database", len(_ieee_db))
+    else:
+        _ieee_db = {}
+        logger.warning("No IEEE OUI database available — only curated vendor names will be used")
+
+    return _ieee_db
+
+
+def update_ieee_db() -> bool:
+    """Force re-download of the IEEE OUI database. Returns True on success."""
+    global _ieee_db
+    success = _download_ieee_db()
+    if success:
+        _ieee_db = None  # force reload on next lookup
+    return success
+
+
+def get_oui_stats() -> Dict[str, int]:
+    """Return stats about the OUI databases."""
+    ieee = _get_ieee_db()
+    stale = _cache_is_stale()
+    mtime = CACHE_FILE.stat().st_mtime if CACHE_FILE.exists() else 0
+    return {
+        "friendly_count": len(FRIENDLY_NAMES),
+        "ieee_count": len(ieee),
+        "total_count": len(ieee) + len(FRIENDLY_NAMES),
+        "cache_age_days": int((time.time() - mtime) / 86400) if mtime else -1,
+        "is_stale": stale,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Public lookup API
+# ---------------------------------------------------------------------------
 
 def lookup_oui(mac: str) -> str:
-    """Look up vendor name from MAC address string (formats like XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX)."""
+    """Look up vendor name from MAC address.
+
+    Resolution order:
+    1. Curated friendly names (consumer brands like "Apple", "Sonos", etc.)
+    2. IEEE OUI database (full registry, ~30k entries)
+    3. Private/randomized MAC detection
+    4. "Unknown Vendor" fallback
+    """
     if not mac or mac.strip() in ("", "00:00:00:00:00:00", "FF:FF:FF:FF:FF:FF"):
         return "Unknown"
 
     cleaned = mac.upper().replace("-", ":").replace(".", "")
     parts = cleaned.split(":")
-    if len(parts) >= 3:
-        prefix = ":".join(parts[:3])
-        if prefix in OUI_DB:
-            return OUI_DB[prefix]
+    if len(parts) < 3:
+        return "Unknown Vendor"
 
-    # Check for randomized / private MAC addresses (bit 1 of 1st byte is set)
+    prefix = ":".join(p.zfill(2) for p in parts[:3])
+
+    # 1. Check curated friendly names first
+    if prefix in FRIENDLY_NAMES:
+        return FRIENDLY_NAMES[prefix]
+
+    # 2. Check IEEE database
+    ieee_db = _get_ieee_db()
+    if prefix in ieee_db:
+        return ieee_db[prefix]
+
+    # 3. Check for randomized / private MAC addresses (locally administered bit)
     try:
         first_byte = int(parts[0], 16)
         if (first_byte & 2) != 0:

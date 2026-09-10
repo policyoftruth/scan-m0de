@@ -16,6 +16,8 @@ def main():
     parser.add_argument("--scan-only", action="store_true", help="Run scan headlessly in background without launching TUI")
     parser.add_argument("--export-json", type=Path, help="Export device catalog to JSON file and exit")
     parser.add_argument("--export-csv", type=Path, help="Export device catalog to CSV file and exit")
+    parser.add_argument("--update-oui", action="store_true", help="Download/update the IEEE OUI vendor database and exit")
+    parser.add_argument("--oui-stats", action="store_true", help="Show OUI database stats and exit")
 
     args = parser.parse_args()
 
@@ -26,6 +28,32 @@ def main():
         except ValueError as e:
             print(f"❌ {e}", file=sys.stderr)
             sys.exit(1)
+
+    # Handle OUI database commands (no DB needed)
+    if args.update_oui:
+        from scan_m0de.oui import update_ieee_db, get_oui_stats
+        print("📡 Downloading IEEE OUI vendor database...")
+        if update_ieee_db():
+            stats = get_oui_stats()
+            print(f"✅ OUI database updated! {stats['ieee_count']:,} IEEE entries + {stats['friendly_count']} curated friendly names")
+        else:
+            print("❌ Failed to download OUI database. Check your internet connection.", file=sys.stderr)
+            sys.exit(1)
+        sys.exit(0)
+
+    if args.oui_stats:
+        from scan_m0de.oui import get_oui_stats, CACHE_FILE
+        stats = get_oui_stats()
+        print(f"📊 OUI Database Stats:")
+        print(f"   Curated friendly names:  {stats['friendly_count']}")
+        print(f"   IEEE registry entries:   {stats['ieee_count']:,}")
+        print(f"   Total vendor coverage:   {stats['total_count']:,}")
+        if stats['cache_age_days'] >= 0:
+            print(f"   Cache age:               {stats['cache_age_days']} days {'(stale — run --update-oui)' if stats['is_stale'] else '(fresh)'}")
+            print(f"   Cache location:          {CACHE_FILE}")
+        else:
+            print(f"   Cache:                   Not downloaded yet (run --update-oui)")
+        sys.exit(0)
 
     db = Database(args.db)
 
