@@ -11,7 +11,7 @@ from scan_m0de.app import run_app
 
 def main():
     parser = argparse.ArgumentParser(description="scan-m0de: Local network scanner, cataloger, and TUI device manager.")
-    parser.add_argument("--db", type=Path, default=Path("devices.db"), help="Path to SQLite database file (default: devices.db)")
+    parser.add_argument("--db", type=Path, default=None, help="Path to SQLite database file (default: ~/.local/share/scan-m0de/devices.db)")
     parser.add_argument("--subnet", type=str, help="Target IPv4 subnet CIDR (e.g. 192.168.1.0/24)")
     parser.add_argument("--scan-only", action="store_true", help="Run scan headlessly in background without launching TUI")
     parser.add_argument("--export-json", type=Path, help="Export device catalog to JSON file and exit")
@@ -59,9 +59,13 @@ def main():
 
     if args.export_json:
         devices = db.get_all_devices()
-        with open(args.export_json, "w") as f:
-            json.dump(devices, f, indent=2)
-        print(f"✅ Exported {len(devices)} cataloged devices to {args.export_json}")
+        if str(args.export_json) == "-":
+            json.dump(devices, sys.stdout, indent=2)
+            sys.stdout.write("\n")
+        else:
+            with open(args.export_json, "w") as f:
+                json.dump(devices, f, indent=2)
+            print(f"✅ Exported {len(devices)} cataloged devices to {args.export_json}")
         sys.exit(0)
 
     if args.export_csv:
@@ -69,11 +73,16 @@ def main():
         devices = db.get_all_devices()
         if devices:
             fieldnames = list(devices[0].keys())
-            with open(args.export_csv, "w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if str(args.export_csv) == "-":
+                writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(devices)
-            print(f"✅ Exported {len(devices)} cataloged devices to {args.export_csv}")
+            else:
+                with open(args.export_csv, "w", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(devices)
+                print(f"✅ Exported {len(devices)} cataloged devices to {args.export_csv}")
         sys.exit(0)
 
     if args.scan_only:

@@ -22,6 +22,25 @@
 
 ## 🛠️ Installation
 
+### Option 1: Standalone CLI Tool (Recommended — Available Everywhere)
+
+Using `uv` (or `pipx`), install `scan-m0de` globally so it is always available on your `$PATH` without ever needing to activate a virtual environment:
+
+```bash
+git clone https://github.com/policyoftruth/scan-m0de.git
+cd scan-m0de
+
+# Install globally in editable mode (so git pulls / edits take effect immediately)
+uv tool install --editable .
+# or with pipx:
+# pipx install --editable .
+
+# Download the full IEEE vendor database (optional but recommended)
+scan-m0de --update-oui
+```
+
+### Option 2: Standard Virtualenv
+
 ```bash
 git clone https://github.com/policyoftruth/scan-m0de.git
 cd scan-m0de
@@ -29,8 +48,6 @@ cd scan-m0de
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-
-# Download the full IEEE vendor database (optional but recommended)
 scan-m0de --update-oui
 ```
 
@@ -39,11 +56,16 @@ scan-m0de --update-oui
 ## 🎮 Usage
 
 ### Launch the TUI
+
+From **any directory in any terminal**, simply run:
+
 ```bash
 scan-m0de
 ```
 
-Custom database path or target subnet:
+Your database is stored centrally and persistently at `~/.local/share/scan-m0de/devices.db`.
+
+To specify a custom database file or target subnet:
 ```bash
 scan-m0de --db ~/my_network.db --subnet 192.168.1.0/24
 ```

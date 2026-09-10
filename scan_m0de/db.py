@@ -7,18 +7,42 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 
-DEFAULT_DB_PATH = Path("devices.db")
+DATA_DIR = Path.home() / ".local" / "share" / "scan-m0de"
+DEFAULT_DB_PATH = DATA_DIR / "devices.db"
+
+
+def resolve_db_path(custom_path: Optional[Path] = None) -> Path:
+    """Resolve database path: explicit arg -> existing local DB -> persistent global storage."""
+    if custom_path:
+        return Path(custom_path).expanduser().resolve()
+
+    local_db = Path("devices.db")
+    global_db = DEFAULT_DB_PATH
+
+    # If global DB doesn't exist yet, but local devices.db exists in current directory,
+    # seamlessly copy it to global storage so existing scans and labels are preserved.
+    if not global_db.exists() and local_db.exists() and local_db.is_file():
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.copy2(local_db, global_db)
+            global_db.chmod(0o600)
+        except OSError:
+            return local_db.resolve()
+
+    return global_db
 
 
 class Database:
     def __init__(self, db_path: Optional[Path] = None):
-        self.db_path = db_path or DEFAULT_DB_PATH
+        self.db_path = resolve_db_path(db_path)
         self._ensure_secure_file()
         self._init_db()
 
     def _ensure_secure_file(self):
         """Create the database file with restrictive permissions (owner-only) if it doesn't exist."""
         db_file = Path(self.db_path)
+        db_file.parent.mkdir(parents=True, exist_ok=True)
         if not db_file.exists():
             db_file.touch(mode=0o600)
         else:
