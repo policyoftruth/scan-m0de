@@ -4,6 +4,7 @@ import ipaddress
 from typing import Dict, Any, Optional
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Grid, Vertical, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Select, Static, DataTable, Rule
@@ -26,9 +27,16 @@ CATEGORIES = [
 class EditDeviceModal(ModalScreen[Optional[Dict[str, str]]]):
     """Modal dialog to edit device custom label, category, and notes."""
 
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
+
     def __init__(self, device: Dict[str, Any]):
         super().__init__()
         self.device = device
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
     def compose(self) -> ComposeResult:
         mac = self.device.get("mac", "")
@@ -82,18 +90,32 @@ class EditDeviceModal(ModalScreen[Optional[Dict[str, str]]]):
 class DiffHistoryModal(ModalScreen[None]):
     """Modal dialog displaying network scan diff log and history."""
 
+    BINDINGS = [
+        Binding("escape", "dismiss_modal", "Close", show=True),
+        Binding("q", "dismiss_modal", "Close", show=True),
+        Binding("d", "dismiss_modal", "Close", show=False),
+    ]
+
     def __init__(self, diffs: list):
         super().__init__()
         self.diffs = diffs
 
+    def action_dismiss_modal(self) -> None:
+        self.dismiss(None)
+
     def compose(self) -> ComposeResult:
         yield Vertical(
-            Static("[bold yellow]⚡ Network Scan Diffs & Audit Log[/bold yellow]\n[dim]Tracks newly joined devices, IP changes, and offline events.[/dim]", id="diff_header"),
-            Rule(),
-            DataTable(id="diff_table"),
             Horizontal(
+                Static("[bold yellow]⚡ Network Scan Diffs & Audit Log[/bold yellow]\n[dim]Tracks newly joined devices, IP changes, and offline events.[/dim]", id="diff_title"),
+                Button("✖ Close (Esc)", variant="default", id="btn_close_diff_top"),
+                id="diff_header_bar"
+            ),
+            Rule(),
+            DataTable(id="diff_table", cursor_type="row"),
+            Horizontal(
+                Static("[dim]Press [bold]Esc[/bold] or [bold]q[/bold] to return to device catalog[/dim]", id="diff_hint"),
                 Button("Close Audit Log", variant="primary", id="btn_close_diff"),
-                id="modal_buttons"
+                id="diff_footer"
             ),
             id="diff_dialog"
         )
@@ -121,6 +143,7 @@ class DiffHistoryModal(ModalScreen[None]):
                 Text(d.get("details", "")),
                 Text(label_vendor),
             )
+        table.focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(None)
@@ -129,9 +152,16 @@ class DiffHistoryModal(ModalScreen[None]):
 class SubnetModal(ModalScreen[Optional[str]]):
     """Modal dialog to select or enter subnet."""
 
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=True),
+    ]
+
     def __init__(self, current_subnet: str):
         super().__init__()
         self.current_subnet = current_subnet
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
     def compose(self) -> ComposeResult:
         yield Vertical(

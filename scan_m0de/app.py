@@ -104,17 +104,46 @@ Screen {
     margin: 0 1;
 }
 
-#modal_dialog, #diff_dialog, #subnet_dialog {
+#modal_dialog, #subnet_dialog {
     padding: 1 2;
     background: $panel;
     border: thick $accent;
-    width: 70;
+    width: 72;
     height: auto;
 }
 
 #diff_dialog {
-    width: 95;
-    height: 30;
+    padding: 1 2;
+    background: $panel;
+    border: thick $accent;
+    width: 92%;
+    height: 85%;
+    max-width: 140;
+    min-width: 75;
+}
+
+#diff_header_bar {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#diff_title {
+    width: 1fr;
+}
+
+#diff_table {
+    height: 1fr;
+}
+
+#diff_footer {
+    height: auto;
+    margin-top: 1;
+}
+
+#diff_hint {
+    width: 1fr;
+    content-align: left middle;
+    height: 3;
 }
 
 #modal_buttons {
