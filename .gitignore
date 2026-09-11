@@ -41,3 +41,6 @@ env/
 # =========================
 .DS_Store
 ._*
+
+# Temporary files
+tmp/
