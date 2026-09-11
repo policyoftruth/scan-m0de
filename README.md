@@ -10,13 +10,14 @@
 ## ✨ Features
 
 - **🚀 Fast Subnet Discovery** — Multi-threaded ping sweep (64 workers) with system ARP table parsing. Scans a /24 in ~10 seconds.
-- **🏷️ Custom Cataloging & Nicknames** — Label your devices with friendly names (*"Living Room Apple TV"*, *"Unraid Server"*), assign categories, and add notes.
+- **🔍 Pure-Python Service Discovery (Zero Root)** — Parallel multicast mDNS/Bonjour (`_googlecast`, `_airplay`, `_printer`, `_spotify-connect`), UPnP/SSDP device XML scraping, and lightweight HTTP title detection resolve exact hardware models and friendly names (*"Kitchen Nest Hub"*, *"Brother MFC-J1170DW"*).
+- **🏷️ Custom Cataloging & Smart Categorization** — Automatically infers device categories (Printers, Smart Home, Gaming, Network, Server) while letting you set friendly custom labels (*"Living Room Apple TV"*, *"Unraid Server"*), manual categories, and notes.
 - **⚡ Diffing & Audit Log** — Automatically flags **NEW** devices never seen before, logs online/offline transitions, and records IP address changes across scans.
 - **📡 Hybrid MAC Vendor Lookup** — Curated friendly-name database (Apple, Sonos, Ubiquiti, Raspberry Pi, ESP32, etc.) layered over the full IEEE OUI registry (~40k entries). Auto-downloads and caches locally — zero API keys, zero cloud calls.
 - **📊 Interactive TUI Dashboard** — Powered by [Textual](https://textual.textualize.io) with real-time stats, live search filtering, status filtering (Online/Offline/New), keyboard navigation, and modal editors.
 - **💾 Single-File SQLite Database** — Your entire device catalog lives in one portable `devices.db` file with owner-only permissions (`0600`), stored centrally at `~/.local/share/scan-m0de/devices.db`.
 - **🤖 Headless & Export Modes** — Run scans from cron (`--scan-only`), stream or save catalog data to JSON or CSV (with `-` for stdout), and update the OUI database on demand.
-- **🔒 Privacy First** — Everything runs locally. No telemetry, no network calls except the optional IEEE OUI database download.
+- **🔒 Privacy First** — Everything runs locally. Zero telemetry, zero root/sudo required, and no external network calls except the optional IEEE OUI database download.
 
 ---
 
@@ -116,17 +117,19 @@ Navigate rows with **`↑` / `↓` Arrow Keys** or **Mouse Clicks**.
 
 ---
 
-## 📡 How Vendor Identification Works
+## 📡 How Device & Service Identification Works
 
-scan-m0de uses a **hybrid two-tier lookup** to identify device manufacturers:
+scan-m0de combines MAC-layer lookups with zero-root active discovery to identify devices with high accuracy:
 
-1. **Curated friendly names** (~370 entries) — Maps MAC prefixes to recognizable consumer brands. For example, a MAC registered to *"Flextronics Computing(Suzhou)Co.,Ltd."* (an Apple contract manufacturer) shows up as simply **"Apple"**.
+1. **Curated Friendly Names** (~370 entries) — Maps MAC prefixes to recognizable consumer brands. For example, a MAC registered to *"Flextronics Computing(Suzhou)Co.,Ltd."* (an Apple contract manufacturer) shows up as simply **"Apple"**.
+2. **IEEE MA-L Registry** (~40,000 entries) — The full public OUI database from [IEEE](https://standards-oui.ieee.org/oui/oui.csv), downloaded and cached locally at `~/.local/share/scan-m0de/`. Auto-refreshes every 30 days, or on demand with `--update-oui`.
+3. **Private MAC Detection** — Devices using iOS/Android MAC randomization (locally-administered bit set) are flagged as **"Private/Randomized MAC"** instead of "Unknown".
+4. **Multicast mDNS/Bonjour** — Concurrently probes `224.0.0.251:5353` for `_googlecast`, `_airplay`, `_spotify-connect`, `_ipp`, `_printer`, `_http`, `_companion-link`, and `_device-info`. Extracts friendly model and room names directly from DNS PTR, SRV, and TXT records without third-party libraries.
+5. **UPnP/SSDP Discovery** — Sends `M-SEARCH` queries across `239.255.255.250:1900` and parses XML device descriptions to extract exact router models, media renderers, and printer hardware info.
+6. **Lightweight HTTP Title Scraping** — Grabs HTML `<title>` tags on web ports (80, 443, 8080) with self-signed SSL support for web management consoles.
+7. **Rule-Based Categorization** — Automatically assigns categories (*Network*, *Printer*, *Smart Home*, *Gaming*, *Server*, *Workstation*, *Mobile*) while strictly respecting your manual overrides and custom labels.
 
-2. **IEEE MA-L registry** (~40,000 entries) — The full public OUI database from [IEEE](https://standards-oui.ieee.org/oui/oui.csv), downloaded and cached locally at `~/.local/share/scan-m0de/`. Auto-refreshes every 30 days, or on demand with `--update-oui`.
-
-3. **Private MAC detection** — Devices using iOS/Android MAC randomization (locally-administered bit set) are flagged as **"Private/Randomized MAC"** instead of "Unknown".
-
-No API keys. No cloud lookups. No dependencies beyond the standard library.
+No API keys. No cloud lookups. No third-party network libraries or root privileges required.
 
 ---
 
@@ -147,6 +150,7 @@ scan-m0de/
 │   ├── app.py        # Textual TUI application
 │   ├── cli.py        # CLI entry point & arg parsing
 │   ├── db.py         # SQLite database manager
+│   ├── discovery.py  # mDNS, UPnP/SSDP & HTTP title discovery
 │   ├── modals.py     # TUI modal dialogs (edit, diff, subnet)
 │   ├── oui.py        # Hybrid MAC vendor lookup (curated + IEEE)
 │   └── scanner.py    # Network discovery engine

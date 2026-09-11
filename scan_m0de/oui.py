@@ -107,8 +107,6 @@ FRIENDLY_NAMES: dict[str, str] = {
     "20:A2:E4": "Apple",
     "20:C9:D0": "Apple",
     "AC:3C:8E": "Apple",
-    "4C:50:DD": "Apple",
-    "1C:30:08": "Apple",
     "1C:53:F9": "Apple",
     "A0:9F:10": "Apple",
     "60:A4:4C": "Apple",

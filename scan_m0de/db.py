@@ -128,7 +128,7 @@ class Database:
 
             # Get current catalog state
             cursor.execute(
-                "SELECT mac, ip, custom_label, vendor, is_online, first_seen FROM devices"
+                "SELECT mac, ip, hostname, custom_label, category, vendor, is_online, first_seen FROM devices"
             )
             catalog = {row["mac"]: dict(row) for row in cursor.fetchall()}
 
@@ -144,6 +144,7 @@ class Database:
             for mac, dev in discovered_macs.items():
                 ip = dev.get("ip", "")
                 hostname = dev.get("hostname", "")
+                category = dev.get("category", "Uncategorized")
                 vendor = dev.get("vendor", "Unknown")
                 open_ports = dev.get("open_ports", "")
 
@@ -161,7 +162,7 @@ class Database:
                             ip,
                             hostname,
                             "",
-                            "Uncategorized",
+                            category,
                             vendor,
                             "",
                             now,
@@ -182,23 +183,44 @@ class Database:
                     )
                 else:
                     prev = catalog[mac]
-                    # Only update vendor from OUI if no custom vendor was previously set
-                    # (i.e., only update if current vendor is a generic/OUI value)
+                    custom_label = prev.get("custom_label", "")
                     existing_vendor = prev.get("vendor", "Unknown")
-                    updated_vendor = (
-                        vendor
-                        if existing_vendor in ("Unknown", "Unknown Vendor", vendor)
-                        else existing_vendor
-                    )
+                    existing_category = prev.get("category", "Uncategorized")
+
+                    # If device has no manual custom label, allow auto-detected vendor & category updates
+                    if not custom_label:
+                        updated_vendor = (
+                            vendor
+                            if vendor not in ("Unknown", "Unknown Vendor")
+                            else existing_vendor
+                        )
+                        updated_category = (
+                            category if category != "Uncategorized" else existing_category
+                        )
+                    else:
+                        updated_vendor = existing_vendor
+                        updated_category = existing_category
+
+                    # Update hostname if previously empty or if a better name was discovered
+                    existing_hostname = prev.get("hostname", "")
+                    updated_hostname = hostname if hostname else existing_hostname
 
                     # Update existing device
                     cursor.execute(
                         """
                         UPDATE devices
-                        SET ip = ?, hostname = ?, vendor = ?, last_seen = ?, is_online = 1, is_new = 0, open_ports = ?
+                        SET ip = ?, hostname = ?, category = ?, vendor = ?, last_seen = ?, is_online = 1, is_new = 0, open_ports = ?
                         WHERE mac = ?
                     """,
-                        (ip, hostname, updated_vendor, now, open_ports, mac),
+                        (
+                            ip,
+                            updated_hostname,
+                            updated_category,
+                            updated_vendor,
+                            now,
+                            open_ports,
+                            mac,
+                        ),
                     )
 
                     # Check for diffs

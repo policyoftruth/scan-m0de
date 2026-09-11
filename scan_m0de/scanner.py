@@ -13,6 +13,12 @@ from typing import Any
 
 import netifaces
 
+from scan_m0de.discovery import (
+    fetch_http_title,
+    infer_device_category,
+    probe_mdns,
+    probe_ssdp,
+)
 from scan_m0de.oui import lookup_oui
 
 logger = logging.getLogger(__name__)
@@ -196,7 +202,23 @@ class NetworkScanner:
             if is_up or ip in arp_map:
                 active_ips.add(ip)
 
-        # 3. Resolve metadata (Hostnames, Ports, Vendor) for active IPs
+        # 3. Multicast Service Discovery (mDNS + UPnP/SSDP in parallel)
+        if progress_callback:
+            progress_callback(total_hosts, total_hosts, "Probing mDNS & UPnP services...")
+
+        ssdp_results: dict[str, dict[str, str]] = {}
+        mdns_results: dict[str, dict[str, str]] = {}
+
+        try:
+            with ThreadPoolExecutor(max_workers=2) as probe_executor:
+                ssdp_fut = probe_executor.submit(probe_ssdp, timeout=1.0)
+                mdns_fut = probe_executor.submit(probe_mdns, timeout=1.0)
+                ssdp_results = ssdp_fut.result()
+                mdns_results = mdns_fut.result()
+        except Exception as e:
+            logger.debug("Multicast discovery error: %s", e)
+
+        # 4. Resolve metadata (Hostnames, Ports, Vendor, Category) for active IPs
         discovered_devices = []
         with ThreadPoolExecutor(max_workers=32) as executor:
 
@@ -205,16 +227,61 @@ class NetworkScanner:
                 if not mac:
                     return None
 
-                hostname = resolve_hostname(ip)
+                dns_hostname = resolve_hostname(ip)
                 vendor = lookup_oui(mac)
                 open_ports = check_open_ports(ip)
                 ports_str = ",".join(str(p) for p in open_ports)
+
+                # Pull mDNS & SSDP results
+                mdns_info = mdns_results.get(ip, {})
+                ssdp_info = ssdp_results.get(ip, {})
+
+                # HTTP Title scraping (if web ports open)
+                http_title = ""
+                if any(p in open_ports for p in (80, 8080, 443)):
+                    http_title = fetch_http_title(ip, open_ports)
+
+                # Prioritize most specific device/room name for hostname
+                hostname = ""
+                if mdns_info.get("friendly_name"):
+                    hostname = mdns_info["friendly_name"]
+                elif ssdp_info.get("friendly_name"):
+                    hostname = ssdp_info["friendly_name"]
+                elif http_title:
+                    hostname = http_title
+                elif mdns_info.get("model_name"):
+                    hostname = mdns_info["model_name"]
+                elif mdns_info.get("instance_name"):
+                    hostname = mdns_info["instance_name"]
+                elif ssdp_info.get("model_name"):
+                    hostname = ssdp_info["model_name"]
+                elif dns_hostname:
+                    hostname = dns_hostname
+
+                # Refine vendor if SSDP manufacturer or service discovery provides a better manufacturer
+                model_str = ssdp_info.get("model_name") or mdns_info.get("model_name") or ""
+                if ssdp_info.get("manufacturer") and ssdp_info["manufacturer"].lower() not in (
+                    "miniupnp",
+                    "unknown",
+                ):
+                    vendor = ssdp_info["manufacturer"]
+                elif "brother" in hostname.lower():
+                    vendor = "Brother"
+
+                # Auto-infer device category
+                category = infer_device_category(
+                    vendor=vendor,
+                    hostname=hostname,
+                    open_ports=open_ports,
+                    model=model_str,
+                )
 
                 return {
                     "ip": ip,
                     "mac": mac,
                     "hostname": hostname,
                     "vendor": vendor,
+                    "category": category,
                     "open_ports": ports_str,
                 }
 
