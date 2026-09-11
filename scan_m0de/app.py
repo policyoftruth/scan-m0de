@@ -1,10 +1,11 @@
 """Main Textual TUI Application for scan-m0de."""
 
-from typing import Dict, Any, List, Optional
+from __future__ import annotations
+
 from pathlib import Path
+from typing import ClassVar
 
 from rich.text import Text
-
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
@@ -14,17 +15,14 @@ from textual.widgets import (
     Footer,
     Header,
     Input,
-    Label,
     ProgressBar,
     Select,
     Static,
-    Rule,
 )
 
 from scan_m0de.db import Database
+from scan_m0de.modals import DiffHistoryModal, EditDeviceModal, SubnetModal
 from scan_m0de.scanner import NetworkScanner, get_default_interface_and_subnet
-from scan_m0de.modals import EditDeviceModal, DiffHistoryModal, SubnetModal
-
 
 APP_CSS = """
 Screen {
@@ -174,7 +172,7 @@ class ScanModeApp(App):
     TITLE = "scan-m0de // Local Network Device Cataloger"
     SUB_TITLE = "Catalog, label, & diff devices on your local network"
 
-    BINDINGS = [
+    BINDINGS: ClassVar[list[Binding]] = [
         Binding("s", "trigger_scan", "Scan Network", show=True),
         Binding("e", "edit_selected", "Edit Device", show=True),
         Binding("d", "view_diffs", "Audit / Diffs Log", show=True),
@@ -184,7 +182,7 @@ class ScanModeApp(App):
         Binding("q", "quit", "Quit", show=True),
     ]
 
-    def __init__(self, db_path: Optional[Path] = None, subnet: Optional[str] = None):
+    def __init__(self, db_path: Path | None = None, subnet: str | None = None):
         super().__init__()
         self.db = Database(db_path)
         self.iface, detected_subnet = get_default_interface_and_subnet()
@@ -193,45 +191,45 @@ class ScanModeApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        
+
         yield Horizontal(
             Vertical(
                 Static("TOTAL DEVICES", classes="stat_title"),
                 Static("0", id="stat_total", classes="stat_number"),
-                classes="stat_box"
+                classes="stat_box",
             ),
             Vertical(
                 Static("ONLINE NOW", classes="stat_title"),
                 Static("0", id="stat_online", classes="stat_number"),
-                classes="stat_box"
+                classes="stat_box",
             ),
             Vertical(
                 Static("OFFLINE", classes="stat_title"),
                 Static("0", id="stat_offline", classes="stat_number"),
-                classes="stat_box"
+                classes="stat_box",
             ),
             Vertical(
                 Static("NEW DISCOVERIES", classes="stat_title"),
                 Static("0", id="stat_new", classes="stat_number_new"),
-                classes="stat_box"
+                classes="stat_box",
             ),
-            id="stats_bar"
+            id="stats_bar",
         )
 
         yield Horizontal(
-            Input(placeholder="🔍 Search custom label, IP, MAC, vendor, hostname...", id="search_input"),
+            Input(
+                placeholder="🔍 Search custom label, IP, MAC, vendor, hostname...",
+                id="search_input",
+            ),
             Select(options=FILTER_OPTIONS, value="ALL", id="status_filter"),
             Button("⚡ Scan Now", variant="primary", id="scan_btn"),
             Button("📜 Audit Diffs", variant="default", id="diff_btn"),
-            id="control_bar"
+            id="control_bar",
         )
 
         yield ProgressBar(id="progress_bar", total=100, show_percentage=True, show_eta=False)
 
-        yield Container(
-            DataTable(id="device_table", cursor_type="row"),
-            id="table_container"
-        )
+        yield Container(DataTable(id="device_table", cursor_type="row"), id="table_container")
 
         yield Footer()
 
@@ -246,7 +244,7 @@ class ScanModeApp(App):
             "Hostname",
             "Category",
             "Ports",
-            "Last Seen"
+            "Last Seen",
         )
         self.refresh_table()
 
@@ -307,7 +305,7 @@ class ScanModeApp(App):
                 Text(dev["category"]),
                 Text(ports_display),
                 Text(dev["last_seen"]),
-                key=dev["mac"]
+                key=dev["mac"],
             )
 
     def on_input_changed(self, event: Input.Changed) -> None:
@@ -340,7 +338,7 @@ class ScanModeApp(App):
         try:
             scan_btn = self.query_one("#scan_btn", Button)
             progress = self.query_one("#progress_bar", ProgressBar)
-            
+
             self.call_from_thread(setattr, scan_btn, "disabled", True)
             self.call_from_thread(setattr, scan_btn, "label", "Scanning...")
             self.call_from_thread(setattr, progress.styles, "display", "block")
@@ -352,7 +350,11 @@ class ScanModeApp(App):
                     self.call_from_thread(setattr, progress, "progress", pct)
 
             scanner = NetworkScanner(self.subnet)
-            self.call_from_thread(self.notify, f"Initiating scan on subnet {self.subnet} ({self.iface})...", title="Scan Started")
+            self.call_from_thread(
+                self.notify,
+                f"Initiating scan on subnet {self.subnet} ({self.iface})...",
+                title="Scan Started",
+            )
 
             results = scanner.scan(progress_callback=progress_cb)
 
@@ -364,9 +366,14 @@ class ScanModeApp(App):
             self.call_from_thread(setattr, progress.styles, "display", "none")
 
             self.call_from_thread(self.refresh_table)
-            
+
             msg = f"Scan finished! Found {summary['total_found']} devices ({summary['new_count']} NEW)."
-            self.call_from_thread(self.notify, msg, title="Scan Complete", severity="information" if summary['new_count'] == 0 else "warning")
+            self.call_from_thread(
+                self.notify,
+                msg,
+                title="Scan Complete",
+                severity="information" if summary["new_count"] == 0 else "warning",
+            )
         finally:
             self.is_scanning = False
 
@@ -375,13 +382,14 @@ class ScanModeApp(App):
         mac = str(event.row_key.value)
         device = self.db.get_device_by_mac(mac)
         if device:
-            def handle_edit(result: Optional[Dict[str, str]]) -> None:
+
+            def handle_edit(result: dict[str, str] | None) -> None:
                 if result:
                     self.db.update_device_label(
                         result["mac"],
                         result["custom_label"],
                         result["category"],
-                        result["notes"]
+                        result["notes"],
                     )
                     self.refresh_table()
                     self.notify(f"Updated label for {result['mac']}", title="Catalog Saved")
@@ -400,13 +408,14 @@ class ScanModeApp(App):
         # Fetch only the selected device from DB
         device = self.db.get_device_by_mac(mac)
         if device:
-            def handle_edit(result: Optional[Dict[str, str]]) -> None:
+
+            def handle_edit(result: dict[str, str] | None) -> None:
                 if result:
                     self.db.update_device_label(
                         result["mac"],
                         result["custom_label"],
                         result["category"],
-                        result["notes"]
+                        result["notes"],
                     )
                     self.refresh_table()
                     self.notify(f"Updated label for {result['mac']}", title="Catalog Saved")
@@ -416,12 +425,15 @@ class ScanModeApp(App):
     def action_view_diffs(self) -> None:
         diffs = self.db.get_scan_diffs()
         if not diffs:
-            self.notify("No diff history logged yet. Run scans to track network changes!", title="Audit Log Empty")
+            self.notify(
+                "No diff history logged yet. Run scans to track network changes!",
+                title="Audit Log Empty",
+            )
             return
         self.push_screen(DiffHistoryModal(diffs))
 
     def action_change_subnet(self) -> None:
-        def handle_subnet(new_subnet: Optional[str]) -> None:
+        def handle_subnet(new_subnet: str | None) -> None:
             if new_subnet:
                 self.subnet = new_subnet
                 self.notify(f"Active subnet updated to {self.subnet}", title="Subnet Changed")
@@ -429,6 +441,6 @@ class ScanModeApp(App):
         self.push_screen(SubnetModal(self.subnet), handle_subnet)
 
 
-def run_app(db_path: Optional[Path] = None, subnet: Optional[str] = None):
+def run_app(db_path: Path | None = None, subnet: str | None = None):
     app = ScanModeApp(db_path=db_path, subnet=subnet)
     app.run()

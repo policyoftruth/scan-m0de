@@ -1,16 +1,18 @@
 """Textual Modal Dialogs for device editing, diff viewing, and configuration."""
 
+from __future__ import annotations
+
 import ipaddress
-from typing import Dict, Any, Optional
+from typing import Any, ClassVar
+
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Grid, Vertical, Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, Select, Static, DataTable, Rule
+from textual.widgets import Button, DataTable, Input, Label, Rule, Select, Static
 
 from scan_m0de.scanner import MIN_PREFIX_LENGTH
-
 
 CATEGORIES = [
     ("Uncategorized", "Uncategorized"),
@@ -24,14 +26,14 @@ CATEGORIES = [
 ]
 
 
-class EditDeviceModal(ModalScreen[Optional[Dict[str, str]]]):
+class EditDeviceModal(ModalScreen[dict[str, str] | None]):
     """Modal dialog to edit device custom label, category, and notes."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[list[Binding]] = [
         Binding("escape", "cancel", "Cancel", show=True),
     ]
 
-    def __init__(self, device: Dict[str, Any]):
+    def __init__(self, device: dict[str, Any]):
         super().__init__()
         self.device = device
 
@@ -59,17 +61,29 @@ class EditDeviceModal(ModalScreen[Optional[Dict[str, str]]]):
             Static(header_text, id="modal_header"),
             Rule(),
             Label("[bold]Custom Device Label / Nickname:[/bold]"),
-            Input(value=label, placeholder="e.g. Living Room Apple TV, Unraid Server...", id="input_label"),
+            Input(
+                value=label,
+                placeholder="e.g. Living Room Apple TV, Unraid Server...",
+                id="input_label",
+            ),
             Label("[bold]Device Category:[/bold]"),
-            Select(options=CATEGORIES, value=category if category in dict(CATEGORIES) else "Uncategorized", id="select_category"),
+            Select(
+                options=CATEGORIES,
+                value=category if category in dict(CATEGORIES) else "Uncategorized",
+                id="select_category",
+            ),
             Label("[bold]Notes / Location / Info:[/bold]"),
-            Input(value=notes, placeholder="e.g. Connected to Port 4 on Switch, Static IP...", id="input_notes"),
+            Input(
+                value=notes,
+                placeholder="e.g. Connected to Port 4 on Switch, Static IP...",
+                id="input_notes",
+            ),
             Horizontal(
                 Button("Save Catalog Entry", variant="primary", id="btn_save"),
                 Button("Cancel", variant="default", id="btn_cancel"),
-                id="modal_buttons"
+                id="modal_buttons",
             ),
-            id="modal_dialog"
+            id="modal_dialog",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -77,12 +91,14 @@ class EditDeviceModal(ModalScreen[Optional[Dict[str, str]]]):
             label_val = self.query_one("#input_label", Input).value.strip()
             category_val = self.query_one("#select_category", Select).value
             notes_val = self.query_one("#input_notes", Input).value.strip()
-            self.dismiss({
-                "mac": self.device["mac"],
-                "custom_label": label_val,
-                "category": str(category_val),
-                "notes": notes_val
-            })
+            self.dismiss(
+                {
+                    "mac": self.device["mac"],
+                    "custom_label": label_val,
+                    "category": str(category_val),
+                    "notes": notes_val,
+                }
+            )
         else:
             self.dismiss(None)
 
@@ -90,7 +106,7 @@ class EditDeviceModal(ModalScreen[Optional[Dict[str, str]]]):
 class DiffHistoryModal(ModalScreen[None]):
     """Modal dialog displaying network scan diff log and history."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[list[Binding]] = [
         Binding("escape", "dismiss_modal", "Close", show=True),
         Binding("q", "dismiss_modal", "Close", show=True),
         Binding("d", "dismiss_modal", "Close", show=False),
@@ -106,24 +122,30 @@ class DiffHistoryModal(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         yield Vertical(
             Horizontal(
-                Static("[bold yellow]⚡ Network Scan Diffs & Audit Log[/bold yellow]\n[dim]Tracks newly joined devices, IP changes, and offline events.[/dim]", id="diff_title"),
+                Static(
+                    "[bold yellow]⚡ Network Scan Diffs & Audit Log[/bold yellow]\n[dim]Tracks newly joined devices, IP changes, and offline events.[/dim]",
+                    id="diff_title",
+                ),
                 Button("✖ Close (Esc)", variant="default", id="btn_close_diff_top"),
-                id="diff_header_bar"
+                id="diff_header_bar",
             ),
             Rule(),
             DataTable(id="diff_table", cursor_type="row"),
             Horizontal(
-                Static("[dim]Press [bold]Esc[/bold] or [bold]q[/bold] to return to device catalog[/dim]", id="diff_hint"),
+                Static(
+                    "[dim]Press [bold]Esc[/bold] or [bold]q[/bold] to return to device catalog[/dim]",
+                    id="diff_hint",
+                ),
                 Button("Close Audit Log", variant="primary", id="btn_close_diff"),
-                id="diff_footer"
+                id="diff_footer",
             ),
-            id="diff_dialog"
+            id="diff_dialog",
         )
 
     def on_mount(self) -> None:
         table = self.query_one("#diff_table", DataTable)
         table.add_columns("Timestamp", "Type", "MAC Address", "Details", "Label / Vendor")
-        
+
         for d in self.diffs:
             change_type = d.get("change_type", "")
             if change_type == "NEW":
@@ -149,10 +171,10 @@ class DiffHistoryModal(ModalScreen[None]):
         self.dismiss(None)
 
 
-class SubnetModal(ModalScreen[Optional[str]]):
+class SubnetModal(ModalScreen[str | None]):
     """Modal dialog to select or enter subnet."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[list[Binding]] = [
         Binding("escape", "cancel", "Cancel", show=True),
     ]
 
@@ -168,14 +190,18 @@ class SubnetModal(ModalScreen[Optional[str]]):
             Static("[bold cyan]Target Subnet Configuration[/bold cyan]", id="subnet_header"),
             Rule(),
             Label(f"Current Subnet: [bold yellow]{self.current_subnet}[/bold yellow]"),
-            Input(value=self.current_subnet, placeholder="e.g. 192.168.1.0/24 or 10.0.0.0/24", id="input_subnet"),
+            Input(
+                value=self.current_subnet,
+                placeholder="e.g. 192.168.1.0/24 or 10.0.0.0/24",
+                id="input_subnet",
+            ),
             Static("", id="subnet_error"),
             Horizontal(
                 Button("Set Subnet", variant="primary", id="btn_set_subnet"),
                 Button("Cancel", variant="default", id="btn_cancel_subnet"),
-                id="modal_buttons"
+                id="modal_buttons",
             ),
-            id="subnet_dialog"
+            id="subnet_dialog",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -186,8 +212,14 @@ class SubnetModal(ModalScreen[Optional[str]]):
             # Validate subnet before accepting
             try:
                 network = ipaddress.IPv4Network(subnet_val, strict=False)
-            except (ipaddress.AddressValueError, ipaddress.NetmaskValueError, ValueError):
-                error_label.update(f"[bold red]Invalid CIDR format. Example: 192.168.1.0/24[/bold red]")
+            except (
+                ipaddress.AddressValueError,
+                ipaddress.NetmaskValueError,
+                ValueError,
+            ):
+                error_label.update(
+                    "[bold red]Invalid CIDR format. Example: 192.168.1.0/24[/bold red]"
+                )
                 return
 
             if network.prefixlen < MIN_PREFIX_LENGTH:
