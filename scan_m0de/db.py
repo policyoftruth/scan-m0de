@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import sqlite3
 import stat
 from datetime import datetime
@@ -305,9 +306,32 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT * FROM devices ORDER BY is_online DESC, custom_label ASC, ip ASC"
+                """
+                SELECT * FROM devices
+                ORDER BY
+                    CASE WHEN (custom_label IS NOT NULL AND custom_label != '') OR (notes IS NOT NULL AND notes != '') THEN 0 ELSE 1 END ASC,
+                    is_online DESC,
+                    CASE WHEN custom_label IS NOT NULL AND custom_label != '' THEN custom_label ELSE notes END COLLATE NOCASE ASC
+                """
             )
-            return [dict(row) for row in cursor.fetchall()]
+            devices = [dict(row) for row in cursor.fetchall()]
+
+        def device_sort_key(dev: dict[str, Any]) -> tuple[int, int, str, int]:
+            # Tier 1: Devices with user descriptions / custom labels / notes at the top
+            has_custom = 0 if (dev.get("custom_label") or dev.get("notes")) else 1
+            # Tier 2: Online devices before offline devices within each tier
+            online_rank = 0 if dev.get("is_online") else 1
+            # Tier 3: Alphabetical sort by label/notes (case-insensitive)
+            label_text = (dev.get("custom_label") or dev.get("notes") or "").lower()
+            # Tier 4: Numerical IPv4 sorting
+            try:
+                ip_num = int(ipaddress.IPv4Address(dev.get("ip", "0.0.0.0")))
+            except Exception:
+                ip_num = 0
+            return (has_custom, online_rank, label_text, ip_num)
+
+        devices.sort(key=device_sort_key)
+        return devices
 
     def get_scan_diffs(self, limit: int = 50) -> list[dict[str, Any]]:
         with self.get_connection() as conn:

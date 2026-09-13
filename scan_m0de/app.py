@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 from typing import ClassVar
 
@@ -262,6 +263,12 @@ class ScanModeApp(App):
         devices = self.db.get_all_devices()
 
         table = self.query_one("#device_table", DataTable)
+        current_mac = None
+        if table.row_count > 0 and table.cursor_row is not None:
+            with contextlib.suppress(Exception):
+                row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
+                current_mac = str(row_key.value)
+
         table.clear()
 
         for dev in devices:
@@ -307,6 +314,10 @@ class ScanModeApp(App):
                 Text(dev["last_seen"]),
                 key=dev["mac"],
             )
+
+        if current_mac:
+            with contextlib.suppress(Exception):
+                table.move_cursor(row=table.get_row_index(current_mac))
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id == "search_input":
